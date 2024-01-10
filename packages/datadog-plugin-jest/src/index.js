@@ -114,15 +114,20 @@ class JestPlugin extends CiPlugin {
       this.tracer._exporter.flush()
     })
 
+    // could we hook into the way jest sends work to the workers? That way we could whether the test is known or not more easily
+
     // Test suites can be run in a different process from jest's main one.
     // This subscriber changes the configuration objects from jest to inject the trace id
     // of the test session to the processes that run the test suites.
-    this.addSub('ci:jest:session:configuration', configs => {
+    this.addSub('ci:jest:session:configuration', (configs) => {
       configs.forEach(config => {
         config._ddTestSessionId = this.testSessionSpan.context().toTraceId()
         config._ddTestModuleId = this.testModuleSpan.context().toSpanId()
         config._ddTestCommand = this.testSessionSpan.context()._tags[TEST_COMMAND]
         config._ddItrCorrelationId = this.itrCorrelationId
+        // IMPORTANT: we need to remove this field in build/ScriptTransformer.js so that it does not affect the cache
+        // It's going to be HUGE! This is no good.
+        // config._ddKnownTests = JSON.stringify(knownTests)
       })
     })
 

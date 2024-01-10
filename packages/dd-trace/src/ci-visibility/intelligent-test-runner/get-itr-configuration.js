@@ -89,12 +89,20 @@ function getItrConfiguration ({
               code_coverage: isCodeCoverageEnabled,
               tests_skipping: isSuitesSkippingEnabled,
               itr_enabled: isItrEnabled,
-              require_git: requireGit
+              require_git: requireGit,
+              early_flake_detection
             }
           }
         } = JSON.parse(res)
 
-        const settings = { isCodeCoverageEnabled, isSuitesSkippingEnabled, isItrEnabled, requireGit }
+        const settings = {
+          isCodeCoverageEnabled,
+          isSuitesSkippingEnabled,
+          isItrEnabled,
+          requireGit,
+          // TODO: set actual value
+          isEarlyFlakeDetectionEnabled: true // early_flake_detection?.enabled
+        }
 
         log.debug(() => `Remote settings: ${JSON.stringify(settings)}`)
 

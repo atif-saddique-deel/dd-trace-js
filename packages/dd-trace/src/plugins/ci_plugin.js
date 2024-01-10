@@ -64,6 +64,18 @@ module.exports = class CiPlugin extends Plugin {
       })
     })
 
+    this.addSub(`ci:${this.constructor.id}:known-tests`, ({ onDone }) => {
+      if (!this.tracer._exporter || !this.tracer._exporter.getKnownTests) {
+        return onDone({ err: new Error('CI Visibility was not initialized correctly') })
+      }
+      this.tracer._exporter.getKnownTests(this.testConfiguration, (err, knownTests) => {
+        if (err) {
+          log.error(`Known tests could not be fetched. ${err.message}`)
+        }
+        onDone({ err, knownTests })
+      })
+    })
+
     this.addSub(`ci:${this.constructor.id}:session:start`, ({ command, frameworkVersion, rootDir }) => {
       const childOf = getTestParentSpan(this.tracer)
       const testSessionSpanMetadata = getTestSessionCommonTags(command, frameworkVersion, this.constructor.id)

@@ -76,6 +76,21 @@ function isMarkedAsUnskippable (test) {
   }
 }
 
+function addKnownTests (originalTests, knownTests, rootDir) {
+  originalTests.forEach(test => {
+    const relativePath = getTestSuitePath(test.path, rootDir)
+    const knownTestsForThisSuite = knownTests.filter(({ suite }) => suite === relativePath)
+    if (knownTestsForThisSuite.length) {
+      debugger
+    }
+    if (test?.context?.config?.testEnvironmentOptions) {
+      test.context.config.testEnvironmentOptions['_ddKnownTests'] = JSON.stringify(
+        knownTestsForThisSuite.map(({ name }) => name)
+      )
+    }
+  })
+}
+
 function getJestSuitesToRun (skippableSuites, originalTests, rootDir) {
   const unskippableSuites = {}
   const forcedToRunSuites = {}
@@ -125,4 +140,10 @@ function getJestSuitesToRun (skippableSuites, originalTests, rootDir) {
   }
 }
 
-module.exports = { getFormattedJestTestParameters, getJestTestName, getJestSuitesToRun, isMarkedAsUnskippable }
+module.exports = {
+  getFormattedJestTestParameters,
+  getJestTestName,
+  getJestSuitesToRun,
+  isMarkedAsUnskippable,
+  addKnownTests
+}

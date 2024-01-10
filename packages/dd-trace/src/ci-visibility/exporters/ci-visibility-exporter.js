@@ -5,6 +5,7 @@ const URL = require('url').URL
 const { sendGitMetadata: sendGitMetadataRequest } = require('./git/git_metadata')
 const { getItrConfiguration: getItrConfigurationRequest } = require('../intelligent-test-runner/get-itr-configuration')
 const { getSkippableSuites: getSkippableSuitesRequest } = require('../intelligent-test-runner/get-skippable-suites')
+const { getKnownTests: getKnownTestsRequest } = require('../early-flake-detection/get-known-tests')
 const log = require('../../log')
 const AgentInfoExporter = require('../../exporters/common/agent-info-exporter')
 
@@ -80,6 +81,13 @@ class CiVisibilityExporter extends AgentInfoExporter {
       this._itrConfig.isSuitesSkippingEnabled)
   }
 
+  shouldRequestKnownTests () {
+    return true
+    // TODO: remove fake true
+    // TODO: rename _itrConfig to _ciVisConfig
+    // return !!(this._canUseCiVisProtocol && this._itrConfig?.isEarlyFlakeDetectionEnabled)
+  }
+
   shouldRequestItrConfiguration () {
     return this._config.isIntelligentTestRunnerEnabled
   }
@@ -90,6 +98,21 @@ class CiVisibilityExporter extends AgentInfoExporter {
 
   canReportCodeCoverage () {
     return this._canUseCiVisProtocol
+  }
+
+  getKnownTests (testConfiguration, callback) {
+    if (!this.shouldRequestKnownTests()) {
+      return callback(null, [])
+    }
+    const configuration = {
+      url: this._getApiUrl(),
+      env: this._config.env,
+      service: this._config.service,
+      isEvpProxy: !!this._isUsingEvpProxy,
+      custom: getTestConfigurationTags(this._config.tags),
+      ...testConfiguration
+    }
+    getKnownTestsRequest(configuration, callback)
   }
 
   // We can't call the skippable endpoint until git upload has finished,

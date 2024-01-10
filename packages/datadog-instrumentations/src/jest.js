@@ -7,6 +7,7 @@ const {
   getCoveredFilenamesFromCoverage,
   JEST_WORKER_TRACE_PAYLOAD_CODE,
   JEST_WORKER_COVERAGE_PAYLOAD_CODE,
+  JEST_WORKER_IS_KNOWN_TEST_CODE,
   getTestLineStart,
   getTestSuitePath,
   getTestParametersString
@@ -14,7 +15,8 @@ const {
 const {
   getFormattedJestTestParameters,
   getJestTestName,
-  getJestSuitesToRun
+  getJestSuitesToRun,
+  addKnownTests
 } = require('../../datadog-plugin-jest/src/util')
 const { DD_MAJOR } = require('../../../version')
 
@@ -38,10 +40,12 @@ const testErrCh = channel('ci:jest:test:err')
 
 const skippableSuitesCh = channel('ci:jest:test-suite:skippable')
 const jestItrConfigurationCh = channel('ci:jest:itr-configuration')
+const knownTestsCh = channel('ci:jest:known-tests')
 
 const itrSkippedSuitesCh = channel('ci:jest:itr:skipped-suites')
 
 let skippableSuites = []
+let knownTests = []
 let isCodeCoverageEnabled = false
 let isSuitesSkippingEnabled = false
 let isUserCodeCoverageEnabled = false
@@ -49,6 +53,7 @@ let isSuitesSkipped = false
 let numSkippedSuites = 0
 let hasUnskippableSuites = false
 let hasForcedToRunSuites = false
+let isEarlyFlakeDetectionEnabled = false
 
 const sessionAsyncResource = new AsyncResource('bound-anonymous-fn')
 
@@ -101,6 +106,11 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
       this.global._ddtrace = global._ddtrace
 
       this.testEnvironmentOptions = getTestEnvironmentOptions(config)
+
+      if (this.testEnvironmentOptions._ddKnownTests) {
+        console.log('this.testEnvironmentOptions._ddKnownTests', this.testEnvironmentOptions._ddKnownTests)
+        console.log('this.testSuite', this.testSuite)
+      }
     }
 
     async handleTestEvent (event, state) {
@@ -208,6 +218,8 @@ addHook({
     const [test] = shardedTests
     const rootDir = test && test.context && test.context.config && test.context.config.rootDir
 
+    addKnownTests(shardedTests, knownTests, rootDir)
+
     const jestSuitesToRun = getJestSuitesToRun(skippableSuites, shardedTests, rootDir || process.cwd())
 
     log.debug(
@@ -247,9 +259,29 @@ function cliWrapper (cli, jestVersion) {
       if (!err) {
         isCodeCoverageEnabled = itrConfig.isCodeCoverageEnabled
         isSuitesSkippingEnabled = itrConfig.isSuitesSkippingEnabled
+        isEarlyFlakeDetectionEnabled = itrConfig.isEarlyFlakeDetectionEnabled
       }
     } catch (err) {
       log.error(err)
+    }
+
+    if (isEarlyFlakeDetectionEnabled) {
+      const knownTestsPromise = new Promise((resolve) => {
+        onDone = resolve
+      })
+
+      sessionAsyncResource.runInAsyncScope(() => {
+        knownTestsCh.publish({ onDone })
+      })
+
+      try {
+        const { err, knownTests: receivedKnownTests } = await knownTestsPromise
+        if (!err) {
+          knownTests = receivedKnownTests
+        }
+      } catch (err) {
+        log.error(err)
+      }
     }
 
     if (isSuitesSkippingEnabled) {
@@ -522,10 +554,6 @@ addHook({
   const SearchSource = searchSourcePackage.default ? searchSourcePackage.default : searchSourcePackage
 
   shimmer.wrap(SearchSource.prototype, 'getTestPaths', getTestPaths => async function () {
-    if (!skippableSuites.length) {
-      return getTestPaths.apply(this, arguments)
-    }
-
     const [{ rootDir, shard }] = arguments
 
     if (shard && shard.shardIndex) {
@@ -542,7 +570,14 @@ addHook({
     const testPaths = await getTestPaths.apply(this, arguments)
     const { tests } = testPaths
 
-    const jestSuitesToRun = getJestSuitesToRun(skippableSuites, tests, rootDir)
+    debugger
+    addKnownTests(tests, knownTests, rootDir)
+
+    if (!skippableSuites.length) {
+      return testPaths
+    }
+
+    const jestSuitesToRun = getJestSuitesToRun(skippableSuites, tests, knownTests, rootDir)
 
     log.debug(() => `${jestSuitesToRun.suitesToRun.length} out of ${tests.length} suites are going to run.`)
 
@@ -620,6 +655,16 @@ addHook({
   const ChildProcessWorker = childProcessWorker.default
   shimmer.wrap(ChildProcessWorker.prototype, '_onMessage', _onMessage => function () {
     const [code, data] = arguments[0]
+    // IPC solution for getting whether it's a known test
+    // // worker asks if the test is known (could potentially send a whole suite instead)
+    // if (code === JEST_WORKER_IS_KNOWN_TEST_CODE) {
+    //   const { testSuite, testName } = data
+    //   const isKnownTest = knownTests.some(({ name, suite }) => suite === testSuite && name === testName)
+    //   console.log('received data', data)
+    //   console.log('isKnownTest', isKnownTest)
+    //   this._child.send([JEST_WORKER_IS_KNOWN_TEST_CODE, isKnownTest])
+    //   return
+    // }
     if (code === JEST_WORKER_TRACE_PAYLOAD_CODE) { // datadog trace payload
       sessionAsyncResource.runInAsyncScope(() => {
         workerReportTraceCh.publish(data)
