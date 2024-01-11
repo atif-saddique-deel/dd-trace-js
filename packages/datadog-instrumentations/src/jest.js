@@ -15,8 +15,7 @@ const {
 const {
   getFormattedJestTestParameters,
   getJestTestName,
-  getJestSuitesToRun,
-  addKnownTests
+  getJestSuitesToRun
 } = require('../../datadog-plugin-jest/src/util')
 const { DD_MAJOR } = require('../../../version')
 
@@ -45,7 +44,7 @@ const knownTestsCh = channel('ci:jest:known-tests')
 const itrSkippedSuitesCh = channel('ci:jest:itr:skipped-suites')
 
 let skippableSuites = []
-let knownTests = []
+let knownTests = {} // dictionary suite > test[]
 let isCodeCoverageEnabled = false
 let isSuitesSkippingEnabled = false
 let isUserCodeCoverageEnabled = false
@@ -108,8 +107,12 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
       this.testEnvironmentOptions = getTestEnvironmentOptions(config)
 
       if (this.testEnvironmentOptions._ddKnownTests) {
-        console.log('this.testEnvironmentOptions._ddKnownTests', this.testEnvironmentOptions._ddKnownTests)
-        console.log('this.testSuite', this.testSuite)
+        // cache the JSON.parse
+        try {
+          this.knownTestsForThisSuite = JSON.parse(this.testEnvironmentOptions._ddKnownTests)[this.testSuite] || []
+        } catch (e) {
+          // ignore errors
+        }
       }
     }
 
@@ -120,7 +123,11 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
 
       const setNameToParams = (name, params) => { this.nameToParams[name] = [...params] }
 
+      if (event.name === 'add_test') {
+        debugger
+      }
       if (event.name === 'setup') {
+        debugger
         if (this.global.test) {
           shimmer.wrap(this.global.test, 'each', each => function () {
             const testParameters = getFormattedJestTestParameters(arguments)
@@ -139,9 +146,10 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
         // It is used later on by the test_done handler
         const asyncResource = new AsyncResource('bound-anonymous-fn')
         asyncResources.set(event.test, asyncResource)
+        const testName = getJestTestName(event.test)
         asyncResource.runInAsyncScope(() => {
           testStartCh.publish({
-            name: getJestTestName(event.test),
+            name: testName,
             suite: this.testSuite,
             runner: 'jest-circus',
             testParameters,
@@ -150,6 +158,10 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
           originalTestFns.set(event.test, event.test.fn)
           event.test.fn = asyncResource.bind(event.test.fn)
         })
+        if (!this.knownTestsForThisSuite?.includes(testName)) {
+          debugger
+          console.log('unknown test!!!!!!!!!!!!!!!!!!!!!!!!', testName)
+        }
       }
       if (event.name === 'test_done') {
         const asyncResource = asyncResources.get(event.test)
@@ -216,11 +228,16 @@ addHook({
     }
     // TODO: could we get the rootDir from each test?
     const [test] = shardedTests
-    const rootDir = test && test.context && test.context.config && test.context.config.rootDir
-
-    addKnownTests(shardedTests, knownTests, rootDir)
+    const rootDir = test?.context?.config?.rootDir
 
     const jestSuitesToRun = getJestSuitesToRun(skippableSuites, shardedTests, rootDir || process.cwd())
+
+    if (Object.keys(knownTests).length) {
+      const testEnvironmentOptions = test?.context?.config?.testEnvironmentOptions
+      if (testEnvironmentOptions) {
+        testEnvironmentOptions._ddKnownTests = JSON.stringify(knownTests)
+      }
+    }
 
     log.debug(
       () => `${jestSuitesToRun.suitesToRun.length} out of ${shardedTests.length} suites are going to run.`
@@ -275,6 +292,7 @@ function cliWrapper (cli, jestVersion) {
       })
 
       try {
+        debugger
         const { err, knownTests: receivedKnownTests } = await knownTestsPromise
         if (!err) {
           knownTests = receivedKnownTests
@@ -530,6 +548,7 @@ addHook({
       _ddForcedToRun,
       _ddUnskippable,
       _ddItrCorrelationId,
+      _ddKnownTests,
       ...restOfTestEnvironmentOptions
     } = testEnvironmentOptions
 
@@ -570,8 +589,12 @@ addHook({
     const testPaths = await getTestPaths.apply(this, arguments)
     const { tests } = testPaths
 
-    debugger
-    addKnownTests(tests, knownTests, rootDir)
+    if (Object.keys(knownTests).length) {
+      const testEnvironmentOptions = tests[0]?.context?.config?.testEnvironmentOptions
+      if (testEnvironmentOptions) {
+        testEnvironmentOptions._ddKnownTests = JSON.stringify(knownTests)
+      }
+    }
 
     if (!skippableSuites.length) {
       return testPaths
