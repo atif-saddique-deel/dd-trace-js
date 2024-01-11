@@ -7,7 +7,6 @@ const {
   getCoveredFilenamesFromCoverage,
   JEST_WORKER_TRACE_PAYLOAD_CODE,
   JEST_WORKER_COVERAGE_PAYLOAD_CODE,
-  JEST_WORKER_IS_KNOWN_TEST_CODE,
   getTestLineStart,
   getTestSuitePath,
   getTestParametersString
@@ -124,10 +123,11 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
       const setNameToParams = (name, params) => { this.nameToParams[name] = [...params] }
 
       if (event.name === 'add_test') {
-        debugger
+        // debugger
+        // const testName = getJestTestName(event.test)
+        // if ()
       }
       if (event.name === 'setup') {
-        debugger
         if (this.global.test) {
           shimmer.wrap(this.global.test, 'each', each => function () {
             const testParameters = getFormattedJestTestParameters(arguments)
@@ -159,8 +159,13 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
           event.test.fn = asyncResource.bind(event.test.fn)
         })
         if (!this.knownTestsForThisSuite?.includes(testName)) {
-          debugger
-          console.log('unknown test!!!!!!!!!!!!!!!!!!!!!!!!', testName)
+          if (!state.currentlyRunningTest.numRetry || state.currentlyRunningTest.numRetry < 5) {
+            // we copy it to run it again
+            const numRetry = state.currentlyRunningTest.numRetry ?? 0
+            state.currentlyRunningTest.parent.children.push({
+              ...state.currentlyRunningTest, numRetry: numRetry + 1
+            })
+          }
         }
       }
       if (event.name === 'test_done') {
