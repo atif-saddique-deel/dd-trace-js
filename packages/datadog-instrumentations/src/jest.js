@@ -122,11 +122,6 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
 
       const setNameToParams = (name, params) => { this.nameToParams[name] = [...params] }
 
-      if (event.name === 'add_test') {
-        // debugger
-        // const testName = getJestTestName(event.test)
-        // if ()
-      }
       if (event.name === 'setup') {
         if (this.global.test) {
           shimmer.wrap(this.global.test, 'each', each => function () {
@@ -297,7 +292,6 @@ function cliWrapper (cli, jestVersion) {
       })
 
       try {
-        debugger
         const { err, knownTests: receivedKnownTests } = await knownTestsPromise
         if (!err) {
           knownTests = receivedKnownTests
