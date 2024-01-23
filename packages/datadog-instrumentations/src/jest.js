@@ -52,6 +52,8 @@ let numSkippedSuites = 0
 let hasUnskippableSuites = false
 let hasForcedToRunSuites = false
 let isEarlyFlakeDetectionEnabled = false
+const NUM_RETRIES_EFD = 4
+const EFD_STRING = '\(Retried by Early Flake Detection\)'
 
 const sessionAsyncResource = new AsyncResource('bound-anonymous-fn')
 
@@ -91,6 +93,14 @@ function getTestEnvironmentOptions (config) {
     return config.testEnvironmentOptions
   }
   return {}
+}
+
+function getEfdTestname (testname) {
+  return `${EFD_STRING} ${testname}`
+}
+
+function removeEfdTestname (testname) {
+  return testname.replace(new RegExp(EFD_STRING, 'g'), '').trim()
 }
 
 function getWrappedEnvironment (BaseEnvironment, jestVersion) {
@@ -144,7 +154,7 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
         const testName = getJestTestName(event.test)
         asyncResource.runInAsyncScope(() => {
           testStartCh.publish({
-            name: testName,
+            name: removeEfdTestname(testName),
             suite: this.testSuite,
             runner: 'jest-circus',
             testParameters,
@@ -154,11 +164,17 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
           event.test.fn = asyncResource.bind(event.test.fn)
         })
         if (!this.knownTestsForThisSuite?.includes(testName)) {
-          if (!state.currentlyRunningTest.numRetry || state.currentlyRunningTest.numRetry < 5) {
+          if (!state.currentlyRunningTest.numRetry || state.currentlyRunningTest.numRetry <= NUM_RETRIES_EFD) {
             // we copy it to run it again
             const numRetry = state.currentlyRunningTest.numRetry ?? 0
+            const invocations = state.currentlyRunningTest.invocations ?? 0
+            const originalName = state.currentlyRunningTest.originalName ?? event.test.name
             state.currentlyRunningTest.parent.children.push({
-              ...state.currentlyRunningTest, numRetry: numRetry + 1
+              ...state.currentlyRunningTest,
+              numRetry: numRetry + 1,
+              invocations: invocations + 1,
+              name: getEfdTestname(originalName),
+              originalName
             })
           }
         }
