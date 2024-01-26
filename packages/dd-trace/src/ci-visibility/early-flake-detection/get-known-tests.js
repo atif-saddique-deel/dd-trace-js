@@ -25,17 +25,18 @@ function getKnownTests ({
   custom
 }, done) {
   const options = {
-    path: '/api/v2/ci/libraries/tests/known_tests',
+    path: '/api/v2/ci/libraries/tests',
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'accept-encoding': 'gzip'
     },
     timeout: 20000,
     url
   }
 
   if (isEvpProxy) {
-    options.path = '/evp_proxy/v2/api/v2/ci/libraries/tests/known_tests'
+    options.path = '/evp_proxy/v2/api/v2/ci/libraries/tests'
     options.headers['X-Datadog-EVP-Subdomain'] = 'api'
   } else {
     const apiKey = process.env.DATADOG_API_KEY || process.env.DD_API_KEY
@@ -43,15 +44,13 @@ function getKnownTests ({
       return done(new Error('Skippable suites were not fetched because Datadog API key is not defined.'))
     }
 
-    // It only works in agentless right now. TODO: make it work in agent
-    options.headers['Accept-encoding'] = 'gzip'
     options.headers['dd-api-key'] = apiKey
   }
 
   const data = JSON.stringify({
     data: {
       id: id().toString(10),
-      type: 'known_test_from_libraries_params',
+      type: 'ci_app_libraries_tests_request',
       attributes: {
         configurations: {
           'os.platform': osPlatform,
@@ -73,6 +72,7 @@ function getKnownTests ({
     if (err) {
       done(err)
     } else {
+      debugger
       let knownTests = {}
       try {
         knownTests = JSON.parse(res)
