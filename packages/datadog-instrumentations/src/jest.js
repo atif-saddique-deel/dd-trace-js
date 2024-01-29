@@ -256,7 +256,7 @@ addHook({
 
     const jestSuitesToRun = getJestSuitesToRun(skippableSuites, shardedTests, rootDir || process.cwd())
 
-    if (Object.keys(knownTests).length) {
+    if (Object.keys(knownTests).length && isEarlyFlakeDetectionEnabled) {
       const testEnvironmentOptions = test?.context?.config?.testEnvironmentOptions
       if (testEnvironmentOptions) {
         testEnvironmentOptions._ddKnownTests = JSON.stringify(knownTests)
@@ -624,8 +624,7 @@ addHook({
     if (!skippableSuites.length) {
       return testPaths
     }
-
-    const jestSuitesToRun = getJestSuitesToRun(skippableSuites, tests, knownTests, rootDir)
+    const jestSuitesToRun = getJestSuitesToRun(skippableSuites, tests, rootDir)
 
     log.debug(() => `${jestSuitesToRun.suitesToRun.length} out of ${tests.length} suites are going to run.`)
 

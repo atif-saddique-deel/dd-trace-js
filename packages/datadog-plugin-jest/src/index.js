@@ -131,7 +131,7 @@ class JestPlugin extends CiPlugin {
         config._ddTestModuleId = this.testModuleSpan.context().toSpanId()
         config._ddTestCommand = this.testSessionSpan.context()._tags[TEST_COMMAND]
         config._ddItrCorrelationId = this.itrCorrelationId
-        config._ddIsEarlyFlakeDetectionEnabled = this.itrConfig.isEarlyFlakeDetectionEnabled
+        config._ddIsEarlyFlakeDetectionEnabled = !!this.itrConfig?.isEarlyFlakeDetectionEnabled
       })
     })
 
