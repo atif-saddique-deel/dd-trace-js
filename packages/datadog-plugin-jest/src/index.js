@@ -16,7 +16,8 @@ const {
   TEST_CODE_OWNERS,
   ITR_CORRELATION_ID,
   TEST_IS_NEW,
-  TEST_EARLY_FLAKE_IS_RETRY
+  TEST_EARLY_FLAKE_IS_RETRY,
+  TEST_EARLY_FLAKE_IS_ENABLED
 } = require('../../dd-trace/src/plugins/util/test')
 const { COMPONENT } = require('../../dd-trace/src/constants')
 const id = require('../../dd-trace/src/id')
@@ -83,7 +84,8 @@ class JestPlugin extends CiPlugin {
       numSkippedSuites,
       hasUnskippableSuites,
       hasForcedToRunSuites,
-      error
+      error,
+      isEarlyFlakeDetectionEnabled
     }) => {
       this.testSessionSpan.setTag(TEST_STATUS, status)
       this.testModuleSpan.setTag(TEST_STATUS, status)
@@ -108,6 +110,10 @@ class JestPlugin extends CiPlugin {
         }
       )
 
+      if (isEarlyFlakeDetectionEnabled) {
+        this.testSessionSpan.setTag(TEST_EARLY_FLAKE_IS_ENABLED, 'true')
+      }
+
       this.testModuleSpan.finish()
       this.telemetry.ciVisEvent(TELEMETRY_EVENT_FINISHED, 'module')
       this.testSessionSpan.finish()
@@ -125,9 +131,7 @@ class JestPlugin extends CiPlugin {
         config._ddTestModuleId = this.testModuleSpan.context().toSpanId()
         config._ddTestCommand = this.testSessionSpan.context()._tags[TEST_COMMAND]
         config._ddItrCorrelationId = this.itrCorrelationId
-        // IMPORTANT: we need to remove this field in build/ScriptTransformer.js so that it does not affect the cache
-        // It's going to be HUGE! This is no good.
-        // config._ddKnownTests = JSON.stringify(knownTests)
+        config._ddIsEarlyFlakeDetectionEnabled = this.itrConfig.isEarlyFlakeDetectionEnabled
       })
     })
 

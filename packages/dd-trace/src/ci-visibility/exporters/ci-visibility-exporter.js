@@ -99,7 +99,7 @@ class CiVisibilityExporter extends AgentInfoExporter {
 
   getKnownTests (testConfiguration, callback) {
     if (!this.shouldRequestKnownTests()) {
-      return callback(null, [])
+      return callback(null, {})
     }
     const configuration = {
       url: this._getApiUrl(),

@@ -4,9 +4,11 @@ const id = require('../../id')
 // TODO: this will NOT work. We need to find a file name within the fullname
 // we'll probably stick with fullnames and construct them for comparison in the framework
 function splitByTestAndSuite (testFullname) {
-  const [beforeExtension, afterExtention] = testFullname.split('test.ts.')
-  const [, suite] = beforeExtension.split('.')
-  return { suite: `${suite}.test.ts`, name: afterExtention }
+  // const [beforeExtension, afterExtention] = testFullname.split('test.ts.')
+  const [beforeExtension, afterExtention] = testFullname.split('.js.')
+  // const [, suite] = beforeExtension.split('.')
+  // return { suite: `${suite}.test.ts`, name: afterExtention }
+  return { suite: `${beforeExtension}.js`, name: afterExtention }
 }
 
 const log = require('../../log')

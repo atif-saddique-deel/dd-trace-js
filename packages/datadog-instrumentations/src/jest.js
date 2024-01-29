@@ -114,10 +114,12 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
       this.global._ddtrace = global._ddtrace
 
       this.testEnvironmentOptions = getTestEnvironmentOptions(config)
+      this.isEarlyFlakeDetectionEnabled = this.testEnvironmentOptions._ddIsEarlyFlakeDetectionEnabled
 
-      if (this.testEnvironmentOptions._ddKnownTests) {
+      if (this.isEarlyFlakeDetectionEnabled) {
         // cache the JSON.parse
         try {
+          // TODO: check if this is the best shape
           this.knownTestsForThisSuite = JSON.parse(this.testEnvironmentOptions._ddKnownTests)[this.testSuite] || []
         } catch (e) {
           // ignore errors
@@ -169,10 +171,9 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
           originalTestFns.set(event.test, event.test.fn)
           event.test.fn = asyncResource.bind(event.test.fn)
         })
-        // only if EFD is enabled!
-        if (!this.knownTestsForThisSuite?.includes(testName)) {
+        if (this.isEarlyFlakeDetectionEnabled && !this.knownTestsForThisSuite?.includes(testName)) {
           if (!state.currentlyRunningTest.numRetry || state.currentlyRunningTest.numRetry <= NUM_RETRIES_EFD) {
-            // we copy it to run it again
+            // We copy the test to run it again
             const numRetry = state.currentlyRunningTest.numRetry ?? 0
             const invocations = state.currentlyRunningTest.invocations ?? 0
             const originalName = state.currentlyRunningTest.originalName ?? event.test.name
@@ -394,7 +395,8 @@ function cliWrapper (cli, jestVersion) {
         numSkippedSuites,
         hasUnskippableSuites,
         hasForcedToRunSuites,
-        error
+        error,
+        isEarlyFlakeDetectionEnabled
       })
     })
 
@@ -571,6 +573,7 @@ addHook({
       _ddUnskippable,
       _ddItrCorrelationId,
       _ddKnownTests,
+      _ddIsEarlyFlakeDetectionEnabled,
       ...restOfTestEnvironmentOptions
     } = testEnvironmentOptions
 
@@ -611,7 +614,7 @@ addHook({
     const testPaths = await getTestPaths.apply(this, arguments)
     const { tests } = testPaths
 
-    if (Object.keys(knownTests).length) {
+    if (Object.keys(knownTests).length && isEarlyFlakeDetectionEnabled) {
       const testEnvironmentOptions = tests[0]?.context?.config?.testEnvironmentOptions
       if (testEnvironmentOptions) {
         testEnvironmentOptions._ddKnownTests = JSON.stringify(knownTests)
@@ -702,14 +705,6 @@ addHook({
     const [code, data] = arguments[0]
     // IPC solution for getting whether it's a known test
     // // worker asks if the test is known (could potentially send a whole suite instead)
-    // if (code === JEST_WORKER_IS_KNOWN_TEST_CODE) {
-    //   const { testSuite, testName } = data
-    //   const isKnownTest = knownTests.some(({ name, suite }) => suite === testSuite && name === testName)
-    //   console.log('received data', data)
-    //   console.log('isKnownTest', isKnownTest)
-    //   this._child.send([JEST_WORKER_IS_KNOWN_TEST_CODE, isKnownTest])
-    //   return
-    // }
     if (code === JEST_WORKER_TRACE_PAYLOAD_CODE) { // datadog trace payload
       sessionAsyncResource.runInAsyncScope(() => {
         workerReportTraceCh.publish(data)
