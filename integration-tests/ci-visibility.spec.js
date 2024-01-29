@@ -113,7 +113,7 @@ testFrameworks.forEach(({
   // if (type === 'esm' && name === 'mocha' && semver.satisfies(process.version, '<16.12.0')) {
   //   return
   // }
-  describe.only(`${name} ${type}`, () => {
+  describe(`${name} ${type}`, () => {
     let receiver
     let childProcess
     let sandbox
@@ -536,7 +536,7 @@ testFrameworks.forEach(({
           }).catch(done)
         })
       })
-      it.only('retries new tests for evp proxy', (done) => {
+      it('retries new tests for evp proxy', (done) => {
         // Tests from ci-visibility/test/ci-visibility-test-2.js will be considered new
         receiver.setKnownTests([
           'ci-visibility/test/ci-visibility-test.js.ci visibility can report tests'
