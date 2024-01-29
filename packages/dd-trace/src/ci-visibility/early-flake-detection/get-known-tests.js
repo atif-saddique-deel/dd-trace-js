@@ -2,6 +2,7 @@ const request = require('../../exporters/common/request')
 const id = require('../../id')
 
 // TODO: this will NOT work. We need to find a file name within the fullname
+// we'll probably stick with fullnames and construct them for comparison in the framework
 function splitByTestAndSuite (testFullname) {
   const [beforeExtension, afterExtention] = testFullname.split('test.ts.')
   const [, suite] = beforeExtension.split('.')
@@ -13,6 +14,7 @@ const log = require('../../log')
 function getKnownTests ({
   url,
   isEvpProxy,
+  evpProxyPrefix,
   env,
   service,
   repositoryUrl,
@@ -36,7 +38,7 @@ function getKnownTests ({
   }
 
   if (isEvpProxy) {
-    options.path = '/evp_proxy/v2/api/v2/ci/libraries/tests'
+    options.path = `${evpProxyPrefix}/api/v2/ci/libraries/tests`
     options.headers['X-Datadog-EVP-Subdomain'] = 'api'
   } else {
     const apiKey = process.env.DATADOG_API_KEY || process.env.DD_API_KEY
@@ -72,7 +74,6 @@ function getKnownTests ({
     if (err) {
       done(err)
     } else {
-      debugger
       let knownTests = {}
       try {
         knownTests = JSON.parse(res)

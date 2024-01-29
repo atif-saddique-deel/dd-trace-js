@@ -24,7 +24,9 @@ const {
   TEST_ITR_SKIPPING_TYPE,
   TEST_ITR_SKIPPING_COUNT,
   TEST_ITR_UNSKIPPABLE,
-  TEST_ITR_FORCED_RUN
+  TEST_ITR_FORCED_RUN,
+  TEST_IS_NEW,
+  TEST_EARLY_FLAKE_IS_RETRY
 } = require('../packages/dd-trace/src/plugins/util/test')
 const { ERROR_MESSAGE } = require('../packages/dd-trace/src/constants')
 
@@ -111,7 +113,7 @@ testFrameworks.forEach(({
   // if (type === 'esm' && name === 'mocha' && semver.satisfies(process.version, '<16.12.0')) {
   //   return
   // }
-  describe(`${name} ${type}`, () => {
+  describe.only(`${name} ${type}`, () => {
     let receiver
     let childProcess
     let sandbox
@@ -490,6 +492,92 @@ testFrameworks.forEach(({
             stdio: 'inherit'
           }
         )
+      })
+
+      it('retries new tests for agentless', (done) => {
+        // Tests from ci-visibility/test/ci-visibility-test-2.js will be considered new
+        receiver.setKnownTests([
+          'ci-visibility/test/ci-visibility-test.js.ci visibility can report tests'
+        ])
+        receiver.setSettings({
+          itr_enabled: false,
+          code_coverage: false,
+          tests_skipping: false,
+          efd_enabled: true
+        })
+        const eventsPromise = receiver
+          .gatherPayloadsMaxTimeout(({ url }) => url.endsWith('/api/v2/citestcycle'), (payloads) => {
+            const events = payloads.flatMap(({ payload }) => payload.events)
+            const tests = events.filter(event => event.type === 'test').map(event => event.content)
+            const newTests = tests.filter(test =>
+              test.meta[TEST_SUITE] === 'ci-visibility/test/ci-visibility-test-2.js'
+            )
+            newTests.forEach(test => {
+              assert.propertyVal(test.meta, TEST_IS_NEW, 'true')
+            })
+            // all but one has been retried
+            assert.equal(
+              newTests.length - 1,
+              newTests.filter(test => test.meta[TEST_EARLY_FLAKE_IS_RETRY] === 'true').length
+            )
+          })
+
+        childProcess = exec(
+          runTestsWithCoverageCommand,
+          {
+            cwd,
+            env: { ...getCiVisAgentlessConfig(receiver.port), TESTS_TO_RUN: 'test/ci-visibility-test' },
+            stdio: 'inherit'
+          }
+        )
+        childProcess.on('exit', () => {
+          eventsPromise.then(() => {
+            done()
+          }).catch(done)
+        })
+      })
+      it.only('retries new tests for evp proxy', (done) => {
+        // Tests from ci-visibility/test/ci-visibility-test-2.js will be considered new
+        receiver.setKnownTests([
+          'ci-visibility/test/ci-visibility-test.js.ci visibility can report tests'
+        ])
+        receiver.setInfoResponse({ endpoints: ['/evp_proxy/v4'] })
+        receiver.setSettings({
+          itr_enabled: false,
+          code_coverage: false,
+          tests_skipping: false,
+          efd_enabled: true
+        })
+        const eventsPromise = receiver
+          .gatherPayloadsMaxTimeout(({ url }) => url.endsWith('/api/v2/citestcycle'), (payloads) => {
+            const events = payloads.flatMap(({ payload }) => payload.events)
+            const tests = events.filter(event => event.type === 'test').map(event => event.content)
+            const newTests = tests.filter(test =>
+              test.meta[TEST_SUITE] === 'ci-visibility/test/ci-visibility-test-2.js'
+            )
+            newTests.forEach(test => {
+              assert.propertyVal(test.meta, TEST_IS_NEW, 'true')
+            })
+            // all but one has been retried
+            assert.equal(
+              newTests.length - 1,
+              newTests.filter(test => test.meta[TEST_EARLY_FLAKE_IS_RETRY] === 'true').length
+            )
+          })
+
+        childProcess = exec(
+          runTestsWithCoverageCommand,
+          {
+            cwd,
+            env: { ...getCiVisEvpProxyConfig(receiver.port), TESTS_TO_RUN: 'test/ci-visibility-test' },
+            stdio: 'inherit'
+          }
+        )
+        childProcess.on('exit', () => {
+          eventsPromise.then(() => {
+            done()
+          }).catch(done)
+        })
       })
     }
 

@@ -82,10 +82,7 @@ class CiVisibilityExporter extends AgentInfoExporter {
   }
 
   shouldRequestKnownTests () {
-    return true
-    // TODO: remove fake true
-    // TODO: rename _itrConfig to _ciVisConfig
-    // return !!(this._canUseCiVisProtocol && this._itrConfig?.isEarlyFlakeDetectionEnabled)
+    return !!(this._canUseCiVisProtocol && this._itrConfig?.isEarlyFlakeDetectionEnabled)
   }
 
   shouldRequestItrConfiguration () {
@@ -109,6 +106,7 @@ class CiVisibilityExporter extends AgentInfoExporter {
       env: this._config.env,
       service: this._config.service,
       isEvpProxy: !!this._isUsingEvpProxy,
+      evpProxyPrefix: this.evpProxyPrefix,
       custom: getTestConfigurationTags(this._config.tags),
       ...testConfiguration
     }

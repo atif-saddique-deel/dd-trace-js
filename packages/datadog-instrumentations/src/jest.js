@@ -53,7 +53,7 @@ let hasUnskippableSuites = false
 let hasForcedToRunSuites = false
 let isEarlyFlakeDetectionEnabled = false
 const NUM_RETRIES_EFD = 4
-const EFD_STRING = '\(Retried by Early Flake Detection\)'
+const EFD_STRING = 'Retried by Early Flake Detection: '
 
 const sessionAsyncResource = new AsyncResource('bound-anonymous-fn')
 
@@ -95,12 +95,12 @@ function getTestEnvironmentOptions (config) {
   return {}
 }
 
-function getEfdTestname (testname) {
-  return `${EFD_STRING} ${testname}`
+function getEfdTestName (testName) {
+  return `${EFD_STRING}${testName}`
 }
 
-function removeEfdTestname (testname) {
-  return testname.replace(new RegExp(EFD_STRING, 'g'), '').trim()
+function removeEfdTestName (testName) {
+  return testName.replace(new RegExp(EFD_STRING, 'g'), '').trim()
 }
 
 function getWrappedEnvironment (BaseEnvironment, jestVersion) {
@@ -152,17 +152,24 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
         const asyncResource = new AsyncResource('bound-anonymous-fn')
         asyncResources.set(event.test, asyncResource)
         const testName = getJestTestName(event.test)
+
+        const isNew = !this.knownTestsForThisSuite?.includes(testName)
+        const isEfdRetry = state.currentlyRunningTest.numRetry
+
         asyncResource.runInAsyncScope(() => {
           testStartCh.publish({
-            name: removeEfdTestname(testName),
+            name: removeEfdTestName(testName),
             suite: this.testSuite,
             runner: 'jest-circus',
             testParameters,
-            frameworkVersion: jestVersion
+            frameworkVersion: jestVersion,
+            isNew,
+            isEfdRetry
           })
           originalTestFns.set(event.test, event.test.fn)
           event.test.fn = asyncResource.bind(event.test.fn)
         })
+        // only if EFD is enabled!
         if (!this.knownTestsForThisSuite?.includes(testName)) {
           if (!state.currentlyRunningTest.numRetry || state.currentlyRunningTest.numRetry <= NUM_RETRIES_EFD) {
             // we copy it to run it again
@@ -173,7 +180,7 @@ function getWrappedEnvironment (BaseEnvironment, jestVersion) {
               ...state.currentlyRunningTest,
               numRetry: numRetry + 1,
               invocations: invocations + 1,
-              name: getEfdTestname(originalName),
+              name: getEfdTestName(originalName),
               originalName
             })
           }

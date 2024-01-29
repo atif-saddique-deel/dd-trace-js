@@ -90,7 +90,7 @@ function getItrConfiguration ({
               tests_skipping: isSuitesSkippingEnabled,
               itr_enabled: isItrEnabled,
               require_git: requireGit,
-              early_flake_detection
+              efd_enabled: isEarlyFlakeDetectionEnabled // TODO: shouldn't this be an object?
             }
           }
         } = JSON.parse(res)
@@ -100,8 +100,7 @@ function getItrConfiguration ({
           isSuitesSkippingEnabled,
           isItrEnabled,
           requireGit,
-          // TODO: set actual value
-          isEarlyFlakeDetectionEnabled: true // early_flake_detection?.enabled
+          isEarlyFlakeDetectionEnabled
         }
 
         log.debug(() => `Remote settings: ${JSON.stringify(settings)}`)

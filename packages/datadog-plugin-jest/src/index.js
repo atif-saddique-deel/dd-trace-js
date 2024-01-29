@@ -14,7 +14,9 @@ const {
   TEST_ITR_UNSKIPPABLE,
   TEST_ITR_FORCED_RUN,
   TEST_CODE_OWNERS,
-  ITR_CORRELATION_ID
+  ITR_CORRELATION_ID,
+  TEST_IS_NEW,
+  TEST_EARLY_FLAKE_IS_RETRY
 } = require('../../dd-trace/src/plugins/util/test')
 const { COMPONENT } = require('../../dd-trace/src/constants')
 const id = require('../../dd-trace/src/id')
@@ -113,8 +115,6 @@ class JestPlugin extends CiPlugin {
       finishAllTraceSpans(this.testSessionSpan)
       this.tracer._exporter.flush()
     })
-
-    // could we hook into the way jest sends work to the workers? That way we could whether the test is known or not more easily
 
     // Test suites can be run in a different process from jest's main one.
     // This subscriber changes the configuration objects from jest to inject the trace id
@@ -291,7 +291,7 @@ class JestPlugin extends CiPlugin {
   }
 
   startTestSpan (test) {
-    const { suite, name, runner, testParameters, frameworkVersion, testStartLine } = test
+    const { suite, name, runner, testParameters, frameworkVersion, testStartLine, isNew, isEfdRetry } = test
 
     const extraTags = {
       [JEST_TEST_RUNNER]: runner,
@@ -300,6 +300,12 @@ class JestPlugin extends CiPlugin {
     }
     if (testStartLine) {
       extraTags[TEST_SOURCE_START] = testStartLine
+    }
+    if (isNew) {
+      extraTags[TEST_IS_NEW] = 'true'
+    }
+    if (isEfdRetry) {
+      extraTags[TEST_EARLY_FLAKE_IS_RETRY] = 'true'
     }
 
     return super.startTestSpan(name, suite, this.testSuiteSpan, extraTags)
