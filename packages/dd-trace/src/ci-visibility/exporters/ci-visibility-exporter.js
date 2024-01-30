@@ -82,7 +82,11 @@ class CiVisibilityExporter extends AgentInfoExporter {
   }
 
   shouldRequestKnownTests () {
-    return !!(this._canUseCiVisProtocol && this._itrConfig?.isEarlyFlakeDetectionEnabled)
+    return !!(
+      this._config.isEarlyFlakeDetectionEnabled &&
+      this._canUseCiVisProtocol &&
+      this._itrConfig?.isEarlyFlakeDetectionEnabled
+    )
   }
 
   shouldRequestItrConfiguration () {
@@ -165,7 +169,7 @@ class CiVisibilityExporter extends AgentInfoExporter {
          * **Important**: this._itrConfig remains empty in testing frameworks
          * where the tests run in a subprocess, because `getItrConfiguration` is called only once.
          */
-        this._itrConfig = itrConfig
+        this._itrConfig = this.getConfiguration(itrConfig)
 
         if (err) {
           callback(err, {})
@@ -176,15 +180,33 @@ class CiVisibilityExporter extends AgentInfoExporter {
               return callback(gitUploadError, {})
             }
             getItrConfigurationRequest(configuration, (err, finalItrConfig) => {
-              this._itrConfig = finalItrConfig
-              callback(err, finalItrConfig)
+              this._itrConfig = this.getConfiguration(finalItrConfig)
+              callback(err, this._itrConfig)
             })
           })
         } else {
-          callback(null, itrConfig)
+          callback(null, this._itrConfig)
         }
       })
     })
+  }
+
+  // Takes into accountn potential kill switches
+  getConfiguration (remoteConfiguration) {
+    const {
+      isCodeCoverageEnabled,
+      isSuitesSkippingEnabled,
+      isItrEnabled,
+      requireGit,
+      isEarlyFlakeDetectionEnabled
+    } = remoteConfiguration
+    return {
+      isCodeCoverageEnabled,
+      isSuitesSkippingEnabled,
+      isItrEnabled,
+      requireGit,
+      isEarlyFlakeDetectionEnabled: isEarlyFlakeDetectionEnabled && this._config.isEarlyFlakeDetectionEnabled
+    }
   }
 
   sendGitMetadata (repositoryUrl) {
