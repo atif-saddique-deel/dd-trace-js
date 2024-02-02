@@ -89,10 +89,9 @@ class Tracer extends NoopProxy {
         runtimeMetrics.start(config)
       }
 
-      if (config.tracing) {
-        // TODO: This should probably not require tracing to be enabled.
-        telemetry.start(config, this._pluginManager)
+      telemetry.start(config, this._pluginManager)
 
+      if (config.tracing) {
         // dirty require for now so zero appsec code is executed unless explicitly enabled
         if (config.appsec.enabled) {
           require('./appsec').enable(config)

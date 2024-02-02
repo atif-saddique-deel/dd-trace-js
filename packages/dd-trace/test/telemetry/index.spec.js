@@ -70,6 +70,7 @@ describe('telemetry', () => {
       },
       circularObject,
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       peerServiceMapping: {
         'service_1': 'remapped_service_1',
@@ -94,6 +95,7 @@ describe('telemetry', () => {
     return testSeq(1, 'app-started', payload => {
       expect(payload).to.have.property('products').that.deep.equal({
         appsec: { enabled: true },
+        appsec_sca: { enabled: true },
         profiler: { version: tracerVersion, enabled: true }
       })
       expect(payload).to.have.property('configuration').that.deep.equal([
@@ -108,6 +110,7 @@ describe('telemetry', () => {
         { name: 'circularObject.child.field', value: 'child_value', origin: 'unknown' },
         { name: 'circularObject.field', value: 'parent_value', origin: 'unknown' },
         { name: 'appsec.enabled', value: true, origin: 'unknown' },
+        { name: 'sca.enabled', value: true, origin: 'unknown' },
         { name: 'profiling.enabled', value: true, origin: 'unknown' },
         { name: 'peerServiceMapping.service_1', value: 'remapped_service_1', origin: 'unknown' },
         { name: 'peerServiceMapping.service_2', value: 'remapped_service_2', origin: 'unknown' },
@@ -189,6 +192,27 @@ describe('telemetry', () => {
   })
 })
 
+describe('AVM OSS', () => {
+  let telemetry
+
+  it('should log a warning when sca is enabled and telemetry no', () => {
+    const logSpy = {
+      warn: sinon.spy()
+    }
+
+    telemetry = proxyquire('../../src/telemetry', {
+      '../log': logSpy
+    })
+
+    telemetry.start({
+      telemetry: { enabled: false },
+      sca: { enabled: true },
+    })
+
+    expect(logSpy.warn).to.have.been.calledOnceWith('DD_APPSEC_SCA_ENABLED requires enabling telemetry to work.')
+  })
+})
+
 describe('telemetry app-heartbeat', () => {
   let telemetry
   const HEARTBEAT_INTERVAL = 60
@@ -228,6 +252,7 @@ describe('telemetry app-heartbeat', () => {
         'runtime-id': '1a2b3c'
       },
       appsec: { enabled: false },
+      sca: { enabled: true },
       profiling: { enabled: false }
     }, {
       _pluginsByName: {}
@@ -323,6 +348,7 @@ describe('Telemetry extended heartbeat', () => {
       service: 'test service',
       version: '1.2.3-beta4',
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       env: 'preprod',
       tags: {
@@ -397,6 +423,7 @@ describe('Telemetry retry', () => {
       service: 'test service',
       version: '1.2.3-beta4',
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       env: 'preprod',
       tags: {
@@ -483,6 +510,7 @@ describe('Telemetry retry', () => {
       service: 'test service',
       version: '1.2.3-beta4',
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       env: 'preprod',
       tags: {
@@ -552,6 +580,7 @@ describe('Telemetry retry', () => {
       service: 'test service',
       version: '1.2.3-beta4',
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       env: 'preprod',
       tags: {
@@ -613,6 +642,7 @@ describe('Telemetry retry', () => {
       service: 'test service',
       version: '1.2.3-beta4',
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       env: 'preprod',
       tags: {
@@ -695,6 +725,7 @@ describe('Telemetry retry', () => {
       service: 'test service',
       version: '1.2.3-beta4',
       appsec: { enabled: true },
+      sca: { enabled: true },
       profiling: { enabled: true },
       env: 'preprod',
       tags: {
@@ -715,6 +746,11 @@ describe('Telemetry retry', () => {
         { name: 'foo2', enabled: true, auto_enabled: true },
         { name: 'bar2', enabled: false, auto_enabled: true }
       ]
+    })
+    expect(extendedHeartbeatPayload['products']).to.deep.include({
+      appsec: { enabled: true },
+      appsec_sca: { enabled: true },
+      profiler: { version: tracerVersion, enabled: true }
     })
   })
 })
